@@ -1,0 +1,40 @@
+version: 0.2
+
+files:
+  - source: /
+    destination: /home/ubuntu/web/
+    overwrite: purge
+    file_exists_behavior: OVERWRITE
+
+
+phases:
+  pre_build:
+    commands:
+      - echo "1. Pre build step"
+#      - aws ecr get-login-password --region $ECR_IMAGE_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$ECR_IMAGE_REGION.amazonaws.com
+      - aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 226642452228.dkr.ecr.ap-southeast-1.amazonaws.com
+  build:
+    commands:
+      - echo "2. Build step"
+      - docker build -f ./deploy-helper/nginx/Dockerfile.nginx -t mynginx:$VERSION .
+      - docker build -f Dockerfile -t php-fpm:$VERSION .
+  post_build:
+    commands:
+      - echo 3. "Post build"
+      - echo "3.1 Push built-nginx to ECR ---------"
+      - docker tag mynginx:$VERSION mynginx:latest
+      - docker tag mynginx:latest 226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/mynginx:latest
+      - docker push 226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/mynginx:latest
+      - echo "3.2 Push php-fpm to ECR --------"      
+      - docker tag php-fpm:$VERSION php-fpm:latest
+      - docker tag php-fpm:latest 226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/php-fpm:latest
+      - docker push 226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/php-fpm:latest
+      - echo "3.3 Create image definitions --------"
+      - printf "[{\"name\":\"php-fpm\",\"imageUri\":\"226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/php-fpm:latest\"}," >> imagedefinitions.json
+      - printf "{\"name\":\"nginx\",\"imageUri\":\"226642452228.dkr.ecr.ap-southeast-1.amazonaws.com/thanhcv/mynginx:latest\"}]" >> imagedefinitions.json
+      - cat imagedefinitions.json
+
+artifacts:
+  files:
+    - README.md
+    - imagedefinitions.json
